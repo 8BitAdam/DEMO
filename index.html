@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<!-- Web app / wrapper compatibility -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#f7f3ec">
 <title>Heritage Tree — Family Tree Maker</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lora:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
 <style>
@@ -28,7 +32,9 @@ body{
   font-family:'Lora',Georgia,serif;
   background:var(--bg);
   color:var(--text-primary);
-  height:100vh;
+  /* Use the CSS "vh" workaround so mobile browser chrome (address bar)
+     changes don't collapse the layout on rotation */
+  height:calc(var(--vh, 1vh) * 100);
   display:flex;
   flex-direction:column;
   overflow:hidden;
@@ -45,6 +51,17 @@ body{
   z-index:100;
   flex-shrink:0;
 }
+
+/* safe-area insets for devices with notches or when embedded in wrappers */
+:root{
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+.app-header{padding-top:calc(10px + var(--safe-top));}
+.canvas-wrapper{padding-bottom:var(--safe-bottom);} 
 .app-title{
   font-family:'Playfair Display',serif;
   font-size:20px;
@@ -190,6 +207,7 @@ body{
   user-select:none;
   transition:box-shadow .15s,border-color .15s;
 }
+.person-node{touch-action:none;} /* allow custom touch handling for drag */
 .person-node:hover{
   box-shadow:3px 5px 16px rgba(44,24,16,.28);
   border-color:var(--accent-light);
@@ -475,6 +493,25 @@ body{
     overflow:visible!important;
   }
 }
+
+/* MOBILE / RESPONSIVE TWEAKS */
+@media (max-width: 720px){
+  .app-header{padding:10px;}
+  .app-title{font-size:18px;}
+  .header-btns{gap:4px;}
+  .toolbar{padding:8px;gap:6px;}
+  .btn{padding:6px 8px;font-size:13px;}
+  .person-node{width:140px;padding:8px;}
+  .node-name{font-size:13px;}
+  .legend-box{display:none;}
+  .zoom-bar{right:10px;bottom:10px;}
+  .modal-box{width:92vw;}
+}
+
+@media (orientation:portrait){
+  /* slightly taller nodes and spacing for portrait */
+  .person-node{min-height:72px;}
+}
 </style>
 </head>
 <body>
@@ -691,6 +728,75 @@ cw.addEventListener('wheel', e => {
   applyT();
 }, {passive:false});
 
+// TOUCH: support panning and pinch-zoom basics
+let touchMode = null; // 'pan'|'drag'|'pinch'
+let lastTouch = null;
+
+function setVh(){
+  // set a CSS variable to represent the viewport height (fixes mobile chrome inconsistencies)
+  document.documentElement.style.setProperty('--vh', window.innerHeight * 0.01 + 'px');
+}
+setVh();
+
+// If visualViewport is available, respond to its changes (useful in webview wrappers)
+if(window.visualViewport){
+  const vv = window.visualViewport;
+  function onVV(){
+    // update vh and also set a CSS var for the viewport height in px
+    setVh();
+    document.documentElement.style.setProperty('--vv-height', vv.height + 'px');
+    // adjust pan so that the canvas remains approximately centered when viewport shrinks (keyboard)
+    // only nudge if viewport height is significantly smaller than layout height
+    const vh = window.innerHeight;
+    if(vv.height < vh - 100){
+      // keyboard likely open - shift canvas up slightly
+      S.py = Math.min(S.py, 20 - (vh - vv.height));
+      applyT();
+    } else {
+      // restore after keyboard closed
+      applyT();
+    }
+  }
+  vv.addEventListener('resize', onVV);
+  vv.addEventListener('scroll', onVV);
+}
+
+window.addEventListener('resize', () => {
+  setVh();
+  // keep view consistent on resize / rotation
+  setTimeout(() => { applyT(); fitScreen(); }, 120);
+});
+
+window.addEventListener('orientationchange', () => {
+  // brief delay to allow browser UI to settle, then re-calc layout
+  setTimeout(() => { setVh(); applyT(); fitScreen(); }, 220);
+});
+
+cw.addEventListener('touchstart', e => {
+  if(e.touches.length === 1){
+    touchMode = 'pan';
+    lastTouch = {x:e.touches[0].clientX, y:e.touches[0].clientY};
+  } else if(e.touches.length === 2){
+    touchMode = 'pinch';
+  }
+}, {passive:false});
+
+cw.addEventListener('touchmove', e => {
+  if(touchMode === 'pan' && e.touches.length === 1){
+    const t = e.touches[0];
+    S.px += (t.clientX - lastTouch.x);
+    S.py += (t.clientY - lastTouch.y);
+    lastTouch = {x:t.clientX, y:t.clientY};
+    applyT();
+    e.preventDefault();
+  }
+}, {passive:false});
+
+cw.addEventListener('touchend', e => {
+  touchMode = null;
+  lastTouch = null;
+});
+
 function zoomBy(f){
   const r = cw.getBoundingClientRect();
   const cx = r.width/2, cy = r.height/2;
@@ -794,6 +900,15 @@ function renderNodes(){
       </div>`;
 
     el.addEventListener('mousedown', e => startDrag(e, p.id));
+      // touch support for dragging nodes
+      el.addEventListener('touchstart', e => {
+        if(e.touches && e.touches[0]){
+          // synthesize a mouse-like event object for existing handlers
+          const t = e.touches[0];
+          startDrag({clientX: t.clientX, clientY: t.clientY, stopPropagation: ()=>{}, preventDefault: ()=>{}}, p.id);
+          e.preventDefault();
+        }
+      }, {passive:false});
     el.addEventListener('click', e => nodeClick(e, p.id));
     el.addEventListener('contextmenu', e => showCtx(e, p.id));
     layer.appendChild(el);
