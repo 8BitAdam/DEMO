@@ -1,0 +1,1396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Heritage Tree — Family Tree Maker</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lora:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f7f3ec;
+  --canvas-bg: #faf7f2;
+  --toolbar-bg: #2c1810;
+  --card-bg: #ffffff;
+  --card-border: #c9a97a;
+  --line-color: #5a3218;
+  --spouse-line: #9b6e45;
+  --text-primary: #1a0f07;
+  --text-secondary: #7a5c3e;
+  --accent: #8b4513;
+  --accent-light: #d4935a;
+  --selected-color: #d4935a;
+  --female-border: #c97a9b;
+  --male-border: #7a9bc9;
+  --modal-overlay: rgba(26,15,7,0.6);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  font-family:'Lora',Georgia,serif;
+  background:var(--bg);
+  color:var(--text-primary);
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+
+/* HEADER */
+.app-header{
+  background:var(--toolbar-bg);
+  padding:10px 18px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  box-shadow:0 2px 8px rgba(0,0,0,.35);
+  z-index:100;
+  flex-shrink:0;
+}
+.app-title{
+  font-family:'Playfair Display',serif;
+  font-size:20px;
+  font-weight:700;
+  color:#f5e6d0;
+  letter-spacing:.06em;
+}
+.app-title span{color:var(--accent-light);}
+.header-btns{display:flex;gap:6px;flex-wrap:wrap;}
+
+/* TOOLBAR */
+.toolbar{
+  background:#3d2012;
+  padding:7px 14px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+  border-bottom:1px solid #5a3018;
+  flex-shrink:0;
+}
+.tbar-sep{width:1px;height:24px;background:#5a3018;margin:0 4px;}
+.tbar-label{
+  font-size:11px;
+  color:#c9a97a;
+  font-family:'Lora',serif;
+  letter-spacing:.05em;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+
+/* BUTTONS */
+.btn{
+  font-family:'Lora',serif;
+  font-size:12px;
+  padding:5px 12px;
+  border-radius:4px;
+  border:1px solid transparent;
+  cursor:pointer;
+  transition:background .15s,border-color .15s;
+  font-weight:500;
+  white-space:nowrap;
+}
+.btn-primary{
+  background:var(--accent);
+  color:#fff;
+  border-color:var(--accent);
+}
+.btn-primary:hover{background:#6b3410;}
+.btn-ghost{
+  background:transparent;
+  color:#f5e6d0;
+  border:1px solid #7a5040;
+}
+.btn-ghost:hover{background:rgba(255,255,255,.1);}
+.btn-toggle{
+  background:transparent;
+  color:#f5e6d0;
+  border:1px solid #7a5040;
+  font-size:12px;
+  padding:4px 10px;
+  font-family:'Lora',serif;
+  border-radius:4px;
+  cursor:pointer;
+  transition:background .15s;
+}
+.btn-toggle.active{
+  background:var(--accent);
+  border-color:var(--accent);
+}
+.btn-toggle:hover:not(.active){background:rgba(139,69,19,.4);}
+.btn-danger{
+  background:#7a1515;
+  color:#fff;
+  border-color:#7a1515;
+}
+.btn-danger:hover{background:#5a0e0e;}
+
+/* CANVAS */
+.canvas-wrapper{
+  flex:1;
+  position:relative;
+  overflow:hidden;
+  background:var(--canvas-bg);
+  cursor:grab;
+  background-image:
+    radial-gradient(circle at 20% 30%,rgba(201,169,122,.06) 0%,transparent 60%),
+    radial-gradient(circle at 80% 70%,rgba(139,69,19,.04) 0%,transparent 60%);
+}
+.canvas-wrapper.is-panning{cursor:grabbing;}
+.canvas-wrapper.connect-mode{cursor:crosshair;}
+#canvas-transform{
+  position:absolute;
+  top:0;
+  left:0;
+  transform-origin:0 0;
+  will-change:transform;
+}
+#ct{
+  position:absolute;
+  top:0;
+  left:0;
+  transform-origin:0 0;
+  will-change:transform;
+}
+#conn-svg{
+  position:absolute;
+  top:0;
+  left:0;
+  width:5000px;
+  height:5000px;
+  pointer-events:none;
+  overflow:visible;
+}
+
+/* LINES */
+.line-pc{
+  stroke:var(--line-color);
+  stroke-width:2;
+  fill:none;
+  stroke-linecap:square;
+  pointer-events:auto;
+}
+.line-sp{
+  stroke:var(--spouse-line);
+  stroke-width:1.5;
+  fill:none;
+  stroke-dasharray:7 3;
+  pointer-events:auto;
+}
+
+/* PERSON NODE */
+.person-node{
+  position:absolute;
+  width:164px;
+  min-height:66px;
+  background:var(--card-bg);
+  border:2px solid var(--card-border);
+  border-radius:6px;
+  box-shadow:2px 3px 10px rgba(44,24,16,.15);
+  padding:9px 12px 9px 14px;
+  cursor:pointer;
+  user-select:none;
+  transition:box-shadow .15s,border-color .15s;
+}
+.person-node:hover{
+  box-shadow:3px 5px 16px rgba(44,24,16,.28);
+  border-color:var(--accent-light);
+}
+.person-node.selected{
+  border-color:var(--selected-color);
+  box-shadow:0 0 0 3px rgba(212,147,90,.35),2px 3px 10px rgba(44,24,16,.15);
+}
+.person-node.connect-from{
+  border-color:#3a9b3a!important;
+  box-shadow:0 0 0 3px rgba(58,155,58,.35)!important;
+}
+.person-node.male{border-left:5px solid var(--male-border);}
+.person-node.female{border-left:5px solid var(--female-border);}
+.person-node.unknown{border-left:5px solid var(--card-border);}
+.node-name{
+  font-family:'Playfair Display',serif;
+  font-size:13px;
+  font-weight:600;
+  color:var(--text-primary);
+  line-height:1.3;
+  word-break:break-word;
+}
+.node-dates{
+  font-size:10.5px;
+  color:var(--text-secondary);
+  font-style:italic;
+  margin-top:3px;
+}
+.node-notes{
+  font-size:9.5px;
+  color:#aaa;
+  margin-top:2px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.node-btns{
+  position:absolute;
+  top:-9px;
+  right:-9px;
+  display:none;
+  gap:3px;
+}
+.person-node:hover .node-btns,
+.person-node.selected .node-btns{
+  display:flex;
+}
+.nab{
+  width:20px;
+  height:20px;
+  border-radius:50%;
+  border:none;
+  cursor:pointer;
+  font-size:10px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.nab-edit{
+  background:#fff;
+  border:1px solid #c9a97a;
+  color:#8b4513;
+}
+.nab-del{
+  background:#7a1515;
+  color:#fff;
+  font-weight:700;
+}
+
+/* ZOOM CONTROLS */
+.zoom-bar{
+  position:absolute;
+  bottom:14px;
+  right:16px;
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  z-index:20;
+}
+.zoom-btn{
+  width:28px;
+  height:28px;
+  border-radius:4px;
+  border:1px solid var(--card-border);
+  background:#fff;
+  color:var(--text-primary);
+  font-size:15px;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow:1px 2px 6px rgba(44,24,16,.15);
+  font-family:monospace;
+}
+.zoom-btn:hover{background:#faf0e0;}
+
+/* LEGEND */
+.legend-box{
+  position:absolute;
+  top:14px;
+  right:16px;
+  background:rgba(255,255,255,.92);
+  border:1px solid #d4c4a8;
+  border-radius:6px;
+  padding:10px 14px;
+  font-size:11px;
+  color:var(--text-secondary);
+  backdrop-filter:blur(2px);
+  z-index:10;
+}
+.legend-box h4{
+  font-family:'Playfair Display',serif;
+  font-size:12px;
+  color:var(--text-primary);
+  margin-bottom:7px;
+}
+.leg-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:4px;
+}
+.leg-line{
+  width:28px;
+  height:2px;
+  background:var(--line-color);
+}
+.leg-dash{
+  width:28px;
+  height:0;
+  border-top:2px dashed var(--spouse-line);
+}
+.leg-swatch{
+  width:14px;
+  height:16px;
+  border:1px solid #bbb;
+  border-radius:2px;
+}
+
+/* MODAL */
+.modal-overlay{
+  position:fixed;
+  inset:0;
+  background:var(--modal-overlay);
+  z-index:1000;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  backdrop-filter:blur(2px);
+}
+.modal-overlay.hidden{display:none;}
+.modal-box{
+  background:#faf7f2;
+  border:1px solid var(--card-border);
+  border-radius:8px;
+  padding:26px;
+  width:370px;
+  max-width:95vw;
+  box-shadow:0 8px 40px rgba(44,24,16,.3);
+}
+.modal-title{
+  font-family:'Playfair Display',serif;
+  font-size:19px;
+  font-weight:700;
+  color:var(--text-primary);
+  margin-bottom:18px;
+  padding-bottom:12px;
+  border-bottom:1px solid #e0d4c0;
+}
+.form-group{margin-bottom:13px;}
+.form-label{
+  display:block;
+  font-size:11px;
+  font-weight:500;
+  color:var(--text-secondary);
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  margin-bottom:4px;
+}
+.form-input,.form-select{
+  width:100%;
+  padding:7px 10px;
+  border:1px solid #d4c4a8;
+  border-radius:4px;
+  font-family:'Lora',serif;
+  font-size:13px;
+  color:var(--text-primary);
+  background:#fff;
+  outline:none;
+  transition:border-color .15s;
+}
+.form-input:focus,.form-select:focus{
+  border-color:var(--accent-light);
+  box-shadow:0 0 0 2px rgba(212,147,90,.2);
+}
+.form-row{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+.modal-footer{
+  margin-top:18px;
+  display:flex;
+  gap:8px;
+  justify-content:flex-end;
+}
+
+/* INFO TOAST */
+.info-toast{
+  position:absolute;
+  bottom:16px;
+  left:50%;
+  transform:translateX(-50%);
+  background:rgba(44,24,16,.88);
+  color:#f5e6d0;
+  font-size:12px;
+  padding:6px 18px;
+  border-radius:20px;
+  pointer-events:none;
+  white-space:nowrap;
+  backdrop-filter:blur(4px);
+  transition:opacity .3s;
+  z-index:50;
+}
+.info-toast.hidden{opacity:0;}
+
+/* CONNECT STATUS */
+.connect-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:3px 12px;
+  border-radius:12px;
+  background:rgba(58,155,58,.18);
+  border:1px solid #3a9b3a;
+  color:#1e6b1e;
+  font-size:11px;
+  font-family:'Lora',serif;
+}
+
+/* CONTEXT MENU */
+.ctx-menu{
+  position:fixed;
+  background:#fff;
+  border:1px solid #d4c4a8;
+  border-radius:6px;
+  box-shadow:2px 4px 16px rgba(44,24,16,.2);
+  z-index:500;
+  min-width:155px;
+  overflow:hidden;
+  font-family:'Lora',serif;
+  font-size:13px;
+}
+.ctx-menu.hidden{display:none;}
+.ctx-item{
+  padding:8px 15px;
+  cursor:pointer;
+  color:var(--text-primary);
+  border-bottom:1px solid #f0e8d8;
+  transition:background .1s;
+}
+.ctx-item:last-child{border-bottom:none;}
+.ctx-item:hover{background:#faf0e0;}
+.ctx-item.danger{color:#7a1515;}
+
+/* PRINT */
+@media print{
+  html, body{
+    overflow:visible !important;
+    height:auto !important;
+  }
+  .app-header,
+  .toolbar,
+  .zoom-bar,
+  .legend-box,
+  .info-toast,
+  .node-btns,
+  .ctx-menu{
+    display:none!important;
+  }
+  .canvas-wrapper{
+    overflow:visible!important;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="app-header">
+  <div class="app-title">Heritage <span>Tree</span></div>
+  <div class="header-btns">
+    <button class="btn btn-ghost" onclick="loadSample()">📋 Load Sample</button>
+    <button class="btn btn-ghost" onclick="saveToJSON()">💾 Save</button>
+    <button class="btn btn-ghost" onclick="triggerOpen()">📂 Open</button>
+    <button class="btn btn-ghost" onclick="window.print()">🖨 Print</button>
+    <input type="file" id="fileInput" accept=".json" style="display:none" onchange="loadFromJSON(this.files[0])">
+  </div>
+</header>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <button class="btn btn-primary" onclick="openAdd()">＋ Add Person</button>
+  <div class="tbar-sep"></div>
+  <span class="tbar-label">Connect:</span>
+  <button class="btn btn-ghost" id="btnPC" onclick="beginConnect('pc')">⬆ Parent → Child</button>
+  <button class="btn btn-ghost" id="btnSP" onclick="beginConnect('sp')">♥ Spouse</button>
+  <button class="btn btn-ghost" id="btnCancelConn" style="display:none" onclick="cancelConnect()">✕ Cancel</button>
+  <div class="tbar-sep"></div>
+  <span class="tbar-label">Layout:</span>
+  <button class="btn-toggle active" id="btnVert" onclick="setLayout('vertical')">⬆ Vertical</button>
+  <button class="btn-toggle" id="btnHoriz" onclick="setLayout('horizontal')">➡ Horizontal</button>
+  <button class="btn btn-ghost" onclick="doAutoLayout()">⟳ Auto-Arrange</button>
+  <div class="tbar-sep"></div>
+  <button class="btn btn-ghost" onclick="fitScreen()">⊡ Fit View</button>
+  <button class="btn btn-ghost" onclick="clearAll()">🗑 Clear</button>
+  <div id="connBadge" style="display:none" class="connect-badge">🔗 <span id="connMsg">Click first person…</span></div>
+</div>
+
+<!-- CANVAS -->
+<div class="canvas-wrapper" id="cw">
+  <div id="ct">
+    <svg id="conn-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="nodes-layer"></div>
+  </div>
+
+  <!-- Zoom -->
+  <div class="zoom-bar">
+    <button class="zoom-btn" onclick="zoomBy(1.2)" title="Zoom in">+</button>
+    <button class="zoom-btn" onclick="zoomBy(0.83)" title="Zoom out">−</button>
+    <button class="zoom-btn" onclick="resetView()" title="Reset view">⊙</button>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend-box">
+    <h4>Legend</h4>
+    <div class="leg-row"><div class="leg-line"></div>Parent / Child</div>
+    <div class="leg-row"><div class="leg-dash"></div>Spouse</div>
+    <div class="leg-row"><div class="leg-swatch" style="border-left:4px solid var(--male-border)"></div>Male</div>
+    <div class="leg-row"><div class="leg-swatch" style="border-left:4px solid var(--female-border)"></div>Female</div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="info-toast hidden" id="toast"></div>
+
+<!-- PERSON MODAL -->
+<div class="modal-overlay hidden" id="modalPerson">
+  <div class="modal-box">
+    <div class="modal-title" id="modalPersonTitle">Add Person</div>
+    <div class="form-group">
+      <label class="form-label">Full Name *</label>
+      <input class="form-input" id="fName" placeholder="First and last name" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Birth Year</label>
+        <input class="form-input" id="fBirth" placeholder="e.g. 1942" maxlength="4"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Death Year</label>
+        <input class="form-input" id="fDeath" placeholder="If deceased" maxlength="4"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Gender</label>
+      <select class="form-select" id="fGender">
+        <option value="unknown">Not specified</option>
+        <option value="male">Male</option>
+        <option value="female">Female</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes / Maiden Name</label>
+      <input class="form-input" id="fNotes" placeholder="Optional" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closePersonModal()" style="color:var(--text-secondary)">Cancel</button>
+      <button class="btn btn-danger" id="btnDelPerson" onclick="doDeletePerson()" style="display:none">Delete</button>
+      <button class="btn btn-primary" onclick="savePerson()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- RELATION MODAL -->
+<div class="modal-overlay hidden" id="modalRel">
+  <div class="modal-box">
+    <div class="modal-title">Edit Relation</div>
+
+    <div class="form-group">
+      <label class="form-label">Person A</label>
+      <input class="form-input" id="relA" disabled />
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Person B</label>
+      <input class="form-input" id="relB" disabled />
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Relation Type</label>
+      <select class="form-select" id="relType">
+        <option value="pc">Parent → Child</option>
+        <option value="sp">Spouse</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <button class="btn btn-ghost" style="width:100%" onclick="swapRelationEnds()">⇄ Swap A / B</button>
+    </div>
+
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-danger" onclick="deleteRelation()">Delete Relation</button>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-ghost" onclick="closeRelModal()" style="color:var(--text-secondary)">Cancel</button>
+        <button class="btn btn-primary" onclick="saveRelation()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONTEXT MENU -->
+<div class="ctx-menu hidden" id="ctxMenu">
+  <div class="ctx-item" onclick="ctxEdit()">✏️ Edit</div>
+  <div class="ctx-item" onclick="ctxQuickAdd('parent')">⬆ Quick-add Parent</div>
+  <div class="ctx-item" onclick="ctxQuickAdd('child')">⬇ Quick-add Child</div>
+  <div class="ctx-item" onclick="ctxQuickAdd('spouse')">♥ Quick-add Spouse</div>
+  <div class="ctx-item danger" onclick="ctxDelete()">🗑 Delete Person</div>
+</div>
+
+<script>
+// STATE
+const S = {
+  people: {},       // id -> {id,name,birthYear,deathYear,gender,notes,x,y}
+  rels: [],         // {id,type:'pc'|'sp',a,b}
+  layout: 'vertical',
+  zoom: 1,
+  px: 80,
+  py: 80,
+  nextId: 1,
+  connMode: null,   // null|'pc'|'sp'
+  connStep: 0,
+  connFrom: null,
+  selId: null,
+  editId: null,
+  ctxId: null,
+  pending: null,    // {relType, who}
+  editRelId: null,
+  relSwap: false
+};
+
+const NW = 164, NH = 70;
+
+function uid(){ return 'p'+(S.nextId++); }
+function rid(){ return 'r'+Date.now()+Math.random().toString(36).slice(2,6); }
+
+// PAN / ZOOM
+const cw = document.getElementById('cw');
+const ct = document.getElementById('ct');
+let panning = false, ps = {x:0,y:0};
+
+function applyT(){
+  ct.style.transform = `translate(${S.px}px,${S.py}px) scale(${S.zoom})`;
+}
+
+cw.addEventListener('mousedown', e => {
+  const tgt = e.target;
+  if(tgt===cw || tgt===ct || tgt.id==='conn-svg' || tgt.id==='nodes-layer'){
+    panning = true;
+    ps = {x:e.clientX-S.px, y:e.clientY-S.py};
+    e.preventDefault();
+  }
+  document.getElementById('ctxMenu').classList.add('hidden');
+});
+
+window.addEventListener('mousemove', e => {
+  if(panning){
+    S.px = e.clientX-ps.x;
+    S.py = e.clientY-ps.y;
+    applyT();
+  }
+  if(dragging){ moveDrag(e); }
+});
+
+window.addEventListener('mouseup', () => {
+  panning = false;
+  dragging = null;
+});
+
+cw.addEventListener('wheel', e => {
+  e.preventDefault();
+  const f = e.deltaY<0 ? 1.12 : 0.89;
+  const r = cw.getBoundingClientRect();
+  const cx = e.clientX-r.left, cy = e.clientY-r.top;
+  S.px = cx - (cx - S.px) * f;
+  S.py = cy - (cy - S.py) * f;
+  S.zoom = Math.min(4, Math.max(0.15, S.zoom * f));
+  applyT();
+}, {passive:false});
+
+function zoomBy(f){
+  const r = cw.getBoundingClientRect();
+  const cx = r.width/2, cy = r.height/2;
+  S.px = cx - (cx - S.px) * f;
+  S.py = cy - (cy - S.py) * f;
+  S.zoom = Math.min(4, Math.max(0.15, S.zoom * f));
+  applyT();
+}
+
+function resetView(){
+  S.zoom = 1;
+  S.px = 80;
+  S.py = 80;
+  applyT();
+}
+
+function fitScreen(){
+  const pp = Object.values(S.people);
+  if(!pp.length) return;
+
+  const xs = pp.map(p=>p.x);
+  const ys = pp.map(p=>p.y);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  const maxX = Math.max(...xs) + NW;
+  const maxY = Math.max(...ys) + NH;
+
+  const r = cw.getBoundingClientRect();
+  const pad = 60;
+  const spanX = Math.max(1, maxX-minX);
+  const spanY = Math.max(1, maxY-minY);
+  const sx = (r.width-pad*2)/spanX;
+  const sy = (r.height-pad*2)/spanY;
+
+  S.zoom = Math.min(1.8, Math.max(0.15, Math.min(sx, sy)));
+  S.px = pad - minX*S.zoom;
+  S.py = pad - minY*S.zoom;
+  applyT();
+}
+
+// DRAG NODES
+let dragging = null, doff = {x:0,y:0};
+
+function startDrag(e, id){
+  if(S.connMode) return;
+  e.stopPropagation();
+  dragging = id;
+  const p = S.people[id];
+  doff = {x:e.clientX/S.zoom - p.x, y:e.clientY/S.zoom - p.y};
+  e.preventDefault();
+}
+
+function moveDrag(e){
+  const p = S.people[dragging];
+  if(!p) return;
+  p.x = e.clientX/S.zoom - doff.x;
+  p.y = e.clientY/S.zoom - doff.y;
+  const el = document.getElementById('n-'+dragging);
+  if(el){
+    el.style.left = p.x+'px';
+    el.style.top = p.y+'px';
+  }
+  drawLines();
+}
+
+// RENDER
+function render(){
+  renderNodes();
+  drawLines();
+  applyT();
+}
+
+function renderNodes(){
+  const layer = document.getElementById('nodes-layer');
+  layer.innerHTML = '';
+  Object.values(S.people).forEach(p => {
+    const el = document.createElement('div');
+    const cls = [
+      'person-node',
+      p.gender || 'unknown',
+      S.selId===p.id ? 'selected' : '',
+      S.connFrom===p.id ? 'connect-from' : ''
+    ].filter(Boolean).join(' ');
+    el.className = cls;
+    el.id = 'n-'+p.id;
+    el.style.left = p.x+'px';
+    el.style.top = p.y+'px';
+
+    const dates = fmtDates(p.birthYear, p.deathYear);
+    el.innerHTML = `
+      <div class="node-name">${esc(p.name) || '<em style="color:#bbb">Unnamed</em>'}</div>
+      ${dates ? `<div class="node-dates">${dates}</div>` : ''}
+      ${p.notes ? `<div class="node-notes">${esc(p.notes)}</div>` : ''}
+      <div class="node-btns">
+        <button class="nab nab-edit" title="Edit"
+          onmousedown="event.stopPropagation()"
+          onclick="editPerson('${p.id}');event.stopPropagation()">✎</button>
+        <button class="nab nab-del" title="Delete"
+          onmousedown="event.stopPropagation()"
+          onclick="delPerson('${p.id}');event.stopPropagation()">×</button>
+      </div>`;
+
+    el.addEventListener('mousedown', e => startDrag(e, p.id));
+    el.addEventListener('click', e => nodeClick(e, p.id));
+    el.addEventListener('contextmenu', e => showCtx(e, p.id));
+    layer.appendChild(el);
+  });
+}
+
+function fmtDates(b,d){
+  if(!b && !d) return '';
+  if(b && d) return `${b} – ${d}`;
+  if(b) return `b. ${b}`;
+  return `d. ${d}`;
+}
+
+function esc(s){
+  return (s||'')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
+}
+
+// DRAW LINES
+function drawLines(){
+  const svg = document.getElementById('conn-svg');
+  svg.innerHTML = '';
+  S.rels.forEach(r => {
+    if(r.type==='pc') drawPC(svg, r.a, r.b, r.id);
+    else drawSP(svg, r.a, r.b, r.id);
+  });
+}
+
+function rect(id){
+  const p = S.people[id];
+  if(!p) return null;
+  return {l:p.x, t:p.y, r:p.x+NW, b:p.y+NH, cx:p.x+NW/2, cy:p.y+NH/2};
+}
+
+function mkPath(cls, d){
+  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  p.setAttribute('d', d);
+  p.setAttribute('class', cls);
+  return p;
+}
+
+function drawPC(svg, pId, cId, relId){
+  const pa = rect(pId), ch = rect(cId);
+  if(!pa || !ch) return;
+
+  let d;
+  if(S.layout==='vertical'){
+    const sx = ch.cx, sy = ch.t, ex = pa.cx, ey = pa.b;
+    const my = (sy+ey)/2;
+    d = Math.abs(sx-ex)<2
+      ? `M${sx} ${sy}L${ex} ${ey}`
+      : `M${sx} ${sy}L${sx} ${my}L${ex} ${my}L${ex} ${ey}`;
+  } else {
+    const sx = ch.r, sy = ch.cy, ex = pa.l, ey = pa.cy;
+    const mx = (sx+ex)/2;
+    d = Math.abs(sy-ey)<2
+      ? `M${sx} ${sy}L${ex} ${ey}`
+      : `M${sx} ${sy}L${mx} ${sy}L${mx} ${ey}L${ex} ${ey}`;
+  }
+
+  const path = mkPath('line-pc', d);
+  path.style.pointerEvents = 'auto';
+  path.style.cursor = 'pointer';
+  path.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openRelModal(relId);
+  });
+  svg.appendChild(path);
+}
+
+function drawSP(svg, id1, id2, relId){
+  const n1 = rect(id1), n2 = rect(id2);
+  if(!n1 || !n2) return;
+
+  let x1, y1, x2, y2;
+  if(S.layout==='vertical'){
+    if(n1.l < n2.l){ x1=n1.r; x2=n2.l; } else { x1=n2.r; x2=n1.l; }
+    y1 = y2 = (n1.cy+n2.cy)/2;
+  } else {
+    if(n1.t < n2.t){ y1=n1.b; y2=n2.t; } else { y1=n2.b; y2=n1.t; }
+    x1 = x2 = (n1.cx+n2.cx)/2;
+  }
+
+  const ln = document.createElementNS('http://www.w3.org/2000/svg','line');
+  ln.setAttribute('x1', x1);
+  ln.setAttribute('y1', y1);
+  ln.setAttribute('x2', x2);
+  ln.setAttribute('y2', y2);
+  ln.setAttribute('class','line-sp');
+  ln.style.pointerEvents = 'auto';
+  ln.style.cursor = 'pointer';
+  ln.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openRelModal(relId);
+  });
+  svg.appendChild(ln);
+}
+
+// AUTO LAYOUT
+function doAutoLayout(){
+  const pp = Object.values(S.people);
+  if(!pp.length) return;
+
+  const p2c = {}, c2p = {};
+  pp.forEach(p => { p2c[p.id]=[]; c2p[p.id]=[]; });
+  S.rels.forEach(r => {
+    if(r.type==='pc'){
+      (p2c[r.a] || []).push(r.b);
+      (c2p[r.b] || []).push(r.a);
+    }
+  });
+
+  const depth = {};
+  const roots = pp.filter(p => !(c2p[p.id] || []).length);
+  const queue = roots.map(p => [p.id, 0]);
+  const vis = new Set();
+
+  while(queue.length){
+    const [id,d] = queue.shift();
+    if(vis.has(id)) continue;
+    vis.add(id);
+    depth[id] = d;
+    (p2c[id] || []).forEach(cid => {
+      if(!vis.has(cid)) queue.push([cid, d+1]);
+    });
+  }
+  pp.forEach(p => { if(depth[p.id] === undefined) depth[p.id] = 0; });
+
+  const byD = {};
+  let maxD = 0;
+  pp.forEach(p => {
+    const d = depth[p.id];
+    (byD[d] || (byD[d] = [])).push(p.id);
+    maxD = Math.max(maxD, d);
+  });
+
+  const generationOrder = Object.keys(byD).map(Number).sort((a,b)=>a-b);
+
+  if(S.layout === 'vertical'){
+    const CW = NW + 50, CH = NH + 80;
+    const OX = 100, OY = 80;
+
+    generationOrder.forEach(dd => {
+      const ids = byD[dd];
+      ids.sort((a,b) => avgParentX(a, p2c, S.people) - avgParentX(b, p2c, S.people));
+      ids.forEach((id, i) => {
+        S.people[id].x = OX + i*CW;
+        S.people[id].y = OY + dd*CH;
+      });
+    });
+
+    const maxWidth = Math.max(...generationOrder.map(d => byD[d].length));
+    generationOrder.forEach(d => {
+      const ids = byD[d];
+      if(ids.length <= 1) return;
+      const shift = ((maxWidth - 1) * CW - (ids.length - 1) * CW) / 2;
+      ids.forEach(id => { S.people[id].x += shift; });
+    });
+  } else {
+    const CW = NW + 60, CH = NH + 30;
+    const OX = 100, OY = 80;
+
+    generationOrder.forEach(dd => {
+      const ids = byD[dd];
+      ids.sort((a,b) => avgParentY(a, c2p, S.people) - avgParentY(b, c2p, S.people));
+      ids.forEach((id, i) => {
+        S.people[id].x = OX + (maxD-dd)*CW;
+        S.people[id].y = OY + i*CH;
+      });
+    });
+
+    const maxRows = Math.max(...generationOrder.map(d => byD[d].length));
+    generationOrder.forEach(d => {
+      const ids = byD[d];
+      if(ids.length <= 1) return;
+      const shift = ((maxRows - 1) * CH - (ids.length - 1) * CH) / 2;
+      ids.forEach(id => { S.people[id].y += shift; });
+    });
+  }
+
+  render();
+  setTimeout(fitScreen, 50);
+  toast('Layout updated');
+}
+
+function avgParentX(id, p2c, people){
+  const parents = S.rels.filter(r => r.type==='pc' && r.b===id).map(r => r.a);
+  if(!parents.length) return 0;
+  return parents.reduce((sum, pid) => sum + ((people[pid] && people[pid].x) || 0), 0) / parents.length;
+}
+
+function avgParentY(id, c2p, people){
+  const parents = S.rels.filter(r => r.type==='pc' && r.b===id).map(r => r.a);
+  if(!parents.length) return 0;
+  return parents.reduce((sum, pid) => sum + ((people[pid] && people[pid].y) || 0), 0) / parents.length;
+}
+
+// ADD / EDIT / DELETE PERSON
+function openAdd(){
+  S.editId = null;
+  document.getElementById('modalPersonTitle').textContent = 'Add Person';
+  document.getElementById('fName').value = '';
+  document.getElementById('fBirth').value = '';
+  document.getElementById('fDeath').value = '';
+  document.getElementById('fGender').value = 'unknown';
+  document.getElementById('fNotes').value = '';
+  document.getElementById('btnDelPerson').style.display = 'none';
+  document.getElementById('modalPerson').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('fName').focus(), 50);
+}
+
+function editPerson(id){
+  const p = S.people[id];
+  if(!p) return;
+  S.editId = id;
+  document.getElementById('modalPersonTitle').textContent = 'Edit Person';
+  document.getElementById('fName').value = p.name || '';
+  document.getElementById('fBirth').value = p.birthYear || '';
+  document.getElementById('fDeath').value = p.deathYear || '';
+  document.getElementById('fGender').value = p.gender || 'unknown';
+  document.getElementById('fNotes').value = p.notes || '';
+  document.getElementById('btnDelPerson').style.display = 'inline-flex';
+  document.getElementById('modalPerson').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('fName').focus(), 50);
+}
+
+function savePerson(){
+  const name = document.getElementById('fName').value.trim();
+  if(!name){
+    alert('Please enter a name.');
+    return;
+  }
+
+  const data = {
+    name,
+    birthYear: document.getElementById('fBirth').value.trim(),
+    deathYear: document.getElementById('fDeath').value.trim(),
+    gender: document.getElementById('fGender').value,
+    notes: document.getElementById('fNotes').value.trim()
+  };
+
+  if(S.editId){
+    Object.assign(S.people[S.editId], data);
+    closePersonModal();
+    render();
+    return;
+  }
+
+  const id = uid();
+  const r = cw.getBoundingClientRect();
+  const cx = (r.width/2 - S.px)/S.zoom - NW/2 + rnd(40);
+  const cy = (r.height/2 - S.py)/S.zoom - NH/2 + rnd(40);
+  S.people[id] = {id, ...data, x: Math.max(10, cx), y: Math.max(10, cy)};
+
+  if(S.pending){
+    const pc = S.pending;
+    S.pending = null;
+    if(pc.relType === 'parent') addRel('pc', id, pc.who);
+    else if(pc.relType === 'child') addRel('pc', pc.who, id);
+    else if(pc.relType === 'spouse') addRel('sp', pc.who, id);
+  }
+
+  closePersonModal();
+  render();
+}
+
+function doDeletePerson(){
+  if(!confirm('Delete this person and their connections?')) return;
+  removePerson(S.editId);
+  closePersonModal();
+}
+
+function delPerson(id){
+  if(!confirm('Delete this person and their connections?')) return;
+  removePerson(id);
+  render();
+}
+
+function removePerson(id){
+  delete S.people[id];
+  S.rels = S.rels.filter(r => r.a !== id && r.b !== id);
+  if(S.selId === id) S.selId = null;
+  render();
+}
+
+function closePersonModal(){
+  document.getElementById('modalPerson').classList.add('hidden');
+  S.editId = null;
+  S.pending = null;
+}
+
+function rnd(n){ return Math.random()*n - n/2; }
+
+// RELATIONSHIPS
+function addRel(type, a, b){
+  if(type === 'pc'){
+    if(S.rels.some(r => r.type==='pc' && r.a===a && r.b===b)){
+      toast('Connection already exists');
+      return false;
+    }
+    S.rels.push({id:rid(), type:'pc', a, b});
+    return true;
+  } else {
+    if(S.rels.some(r => r.type==='sp' && ((r.a===a && r.b===b) || (r.a===b && r.b===a)))){
+      toast('Spouse connection already exists');
+      return false;
+    }
+    S.rels.push({id:rid(), type:'sp', a, b});
+    return true;
+  }
+}
+
+// CONNECT MODE
+function beginConnect(type){
+  S.connMode = type;
+  S.connStep = 1;
+  S.connFrom = null;
+  document.getElementById('connBadge').style.display = 'flex';
+  document.getElementById('btnCancelConn').style.display = '';
+  cw.classList.add('connect-mode');
+  const who = type === 'pc' ? 'the PARENT' : 'the first spouse';
+  document.getElementById('connMsg').textContent = `Click ${who}…`;
+  toast(type === 'pc' ? 'Click parent first, then child' : 'Click first spouse, then second');
+}
+
+function cancelConnect(){
+  S.connMode = null;
+  S.connStep = 0;
+  S.connFrom = null;
+  document.getElementById('connBadge').style.display = 'none';
+  document.getElementById('btnCancelConn').style.display = 'none';
+  cw.classList.remove('connect-mode');
+  renderNodes();
+}
+
+function nodeClick(e, id){
+  e.stopPropagation();
+  if(!S.connMode){
+    S.selId = (S.selId === id) ? null : id;
+    renderNodes();
+    return;
+  }
+  if(S.connStep === 1){
+    S.connFrom = id;
+    S.connStep = 2;
+    const who = S.connMode === 'pc' ? 'the CHILD' : 'the second spouse';
+    document.getElementById('connMsg').textContent = `Now click ${who}…`;
+    renderNodes();
+    return;
+  }
+  if(S.connStep === 2){
+    if(id === S.connFrom){
+      toast('Cannot connect a person to themselves');
+      return;
+    }
+    const ok = addRel(S.connMode, S.connFrom, id);
+    if(ok) toast('Connection added ✓');
+    cancelConnect();
+    render();
+  }
+}
+
+// CONTEXT MENU
+function showCtx(e, id){
+  e.preventDefault();
+  e.stopPropagation();
+  S.ctxId = id;
+  const m = document.getElementById('ctxMenu');
+  m.style.left = e.clientX+'px';
+  m.style.top = e.clientY+'px';
+  m.classList.remove('hidden');
+}
+
+function ctxEdit(){
+  document.getElementById('ctxMenu').classList.add('hidden');
+  editPerson(S.ctxId);
+}
+
+function ctxDelete(){
+  document.getElementById('ctxMenu').classList.add('hidden');
+  delPerson(S.ctxId);
+}
+
+function ctxQuickAdd(relType){
+  document.getElementById('ctxMenu').classList.add('hidden');
+  S.pending = {relType, who:S.ctxId};
+  openAdd(true);
+}
+
+document.addEventListener('click', () => document.getElementById('ctxMenu').classList.add('hidden'));
+
+// LAYOUT
+function setLayout(type){
+  S.layout = type;
+  document.getElementById('btnVert').classList.toggle('active', type === 'vertical');
+  document.getElementById('btnHoriz').classList.toggle('active', type === 'horizontal');
+  doAutoLayout();
+}
+
+// TOAST
+let toastTimer;
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add('hidden'), 2600);
+}
+
+// SAVE / LOAD
+function saveToJSON(){
+  const blob = new Blob(
+    [JSON.stringify({people:S.people, rels:S.rels, nextId:S.nextId}, null, 2)],
+    {type:'application/json;charset=utf-8'}
+  );
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'family-tree.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function triggerOpen(){
+  document.getElementById('fileInput').click();
+}
+
+function loadFromJSON(file){
+  if(!file) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    try{
+      const d = JSON.parse(ev.target.result);
+      S.people = d.people || {};
+      S.rels = d.rels || [];
+      S.nextId = d.nextId || 1;
+      S.selId = null;
+      S.pending = null;
+      S.connMode = null;
+      S.connStep = 0;
+      S.connFrom = null;
+      document.getElementById('connBadge').style.display = 'none';
+      document.getElementById('btnCancelConn').style.display = 'none';
+      cw.classList.remove('connect-mode');
+      render();
+      fitScreen();
+      toast('Tree loaded ✓');
+    }catch(err){
+      alert('Error loading file: ' + err.message);
+    }
+  };
+  r.readAsText(file);
+}
+
+function clearAll(){
+  if(!confirm('Clear the entire tree? This cannot be undone.')) return;
+  S.people = {};
+  S.rels = [];
+  S.nextId = 1;
+  S.selId = null;
+  render();
+}
+
+// RELATION MODAL
+function openRelModal(relId){
+  const rel = S.rels.find(r => r.id === relId);
+  if(!rel) return;
+
+  S.editRelId = relId;
+  S.relSwap = false;
+
+  const a = S.people[rel.a];
+  const b = S.people[rel.b];
+
+  document.getElementById('relA').value = a ? a.name : '(missing)';
+  document.getElementById('relB').value = b ? b.name : '(missing)';
+  document.getElementById('relType').value = rel.type;
+  document.getElementById('modalRel').classList.remove('hidden');
+}
+
+function closeRelModal(){
+  document.getElementById('modalRel').classList.add('hidden');
+  S.editRelId = null;
+  S.relSwap = false;
+}
+
+function swapRelationEnds(){
+  const rel = S.rels.find(r => r.id === S.editRelId);
+  if(!rel) return;
+  [rel.a, rel.b] = [rel.b, rel.a];
+  S.relSwap = !S.relSwap;
+  const a = S.people[rel.a];
+  const b = S.people[rel.b];
+  document.getElementById('relA').value = a ? a.name : '(missing)';
+  document.getElementById('relB').value = b ? b.name : '(missing)';
+  render();
+  toast('Endpoints swapped');
+}
+
+function saveRelation(){
+  const rel = S.rels.find(r => r.id === S.editRelId);
+  if(!rel) return;
+
+  const newType = document.getElementById('relType').value;
+  rel.type = newType;
+
+  if(newType === 'pc' && S.relSwap){
+    [rel.a, rel.b] = [rel.b, rel.a];
+  }
+
+  closeRelModal();
+  render();
+  toast('Relation updated');
+}
+
+function deleteRelation(){
+  const rel = S.rels.find(r => r.id === S.editRelId);
+  if(!rel) return;
+  if(!confirm('Delete this relation?')) return;
+  S.rels = S.rels.filter(r => r.id !== rel.id);
+  closeRelModal();
+  render();
+  toast('Relation deleted');
+}
+
+// SAMPLE DATA
+function loadSample(){
+  if(Object.keys(S.people).length > 0 && !confirm('Replace current tree with sample?')) return;
+  S.people = {};
+  S.rels = [];
+  S.nextId = 1;
+
+  function p(name,b,d,g,n){
+    const id = uid();
+    S.people[id] = {id, name, birthYear:b, deathYear:d, gender:g, notes:n||'', x:0, y:0};
+    return id;
+  }
+  function pc(par,ch){ S.rels.push({id:rid(), type:'pc', a:par, b:ch}); }
+  function sp(a,b){ S.rels.push({id:rid(), type:'sp', a, b}); }
+
+  const ggf = p('William Thompson','1888','1962','male','Great-grandfather');
+  const ggm = p('Margaret Thompson','1890','1970','female','née Wilson');
+  sp(ggf,ggm);
+
+  const gpf1 = p('Robert Thompson','1918','1995','male');
+  const gpm1 = p('Dorothy Thompson','1921','2004','female','née Clarke');
+  const gpf2 = p('Harold Evans','1916','1989','male');
+  const gpm2 = p('Edith Evans','1919','2001','female','née Baker');
+  sp(gpf1,gpm1); sp(gpf2,gpm2);
+  pc(ggf,gpf1); pc(ggm,gpf1);
+
+  const dad = p('James Thompson','1945','','male');
+  const mom = p('Susan Thompson','1948','','female','née Evans');
+  sp(dad,mom);
+  pc(gpf1,dad); pc(gpm1,dad);
+  pc(gpf2,mom); pc(gpm2,mom);
+
+  const you = p('You','1973','','unknown','(Yourself)');
+  const sibling = p('Emily Thompson','1976','','female');
+  const spouse = p('Your Spouse','1974','','unknown');
+  sp(you,spouse);
+  pc(dad,you); pc(mom,you);
+  pc(dad,sibling); pc(mom,sibling);
+
+  const ch1 = p('Child One','2001','','male');
+  const ch2 = p('Child Two','2004','','female');
+  pc(you,ch1); pc(spouse,ch1);
+  pc(you,ch2); pc(spouse,ch2);
+
+  doAutoLayout();
+  toast('Sample family tree loaded');
+}
+
+// KEYBOARD
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape'){
+    if(S.connMode) cancelConnect();
+    closePersonModal();
+    closeRelModal();
+    document.getElementById('ctxMenu').classList.add('hidden');
+  }
+  if(e.key === 'Delete' && S.selId && document.getElementById('modalPerson').classList.contains('hidden')){
+    delPerson(S.selId);
+  }
+});
+
+document.getElementById('fName').addEventListener('keydown', e => {
+  if(e.key === 'Enter') savePerson();
+});
+
+// INIT
+applyT();
+toast('Welcome! Add a person to start, or click "Load Sample" for a demo.');
+</script>
+</body>
+</html>
